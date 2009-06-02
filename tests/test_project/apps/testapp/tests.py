@@ -59,35 +59,20 @@ class AbstractBaseClassTests(MainTests):
         result = self.client.get('/api/abstract.json',
                 HTTP_AUTHORIZATION=self.auth_string).content
                 
-        expected = """[
-    {
-        "id": 1, 
-        "some_other": "something else", 
-        "some_field": "something here"
-    }, 
-    {
-        "id": 2, 
-        "some_other": "something else", 
-        "some_field": "something here"
-    }
-]"""
+        expected = '[{"id": 1, "some_other": "something else", "some_field": "something here"}, {"id": 2, "some_other": "something else", "some_field": "something here"}]'
         
         self.assertEquals(result, expected)
 
     def test_specific_id(self):
         ids = (1, 2)
-        be = """{
-    "id": %d, 
-    "some_other": "something else", 
-    "some_field": "something here"
-}"""
+        be = '{"id": %d, "some_other": "something else", "some_field": "something here"}'
         
         for id_ in ids:
             result = self.client.get('/api/abstract/%d.json' % id_,
                     HTTP_AUTHORIZATION=self.auth_string).content
                     
             expected = be % id_
-            
+                    
             self.assertEquals(result, expected)
 
 class IncomingExpressiveTests(MainTests):
@@ -102,58 +87,20 @@ class IncomingExpressiveTests(MainTests):
                                       'comments': [ { 'content': 'test1' },
                                                     { 'content': 'test2' } ] })
     
-        expected = """[
-    {
-        "content": "bar", 
-        "comments": [], 
-        "title": "foo"
-    }, 
-    {
-        "content": "bar2", 
-        "comments": [], 
-        "title": "foo2"
-    }
-]"""
+        expected = '[{"content": "bar", "comments": [], "title": "foo"}, {"content": "bar2", "comments": [], "title": "foo2"}]'
     
-        result = self.client.get('/api/expressive.json',
-            HTTP_AUTHORIZATION=self.auth_string).content
-
-        self.assertEquals(result, expected)
+        self.assertEquals(self.client.get('/api/expressive.json', 
+            HTTP_AUTHORIZATION=self.auth_string).content, expected)
         
         resp = self.client.post('/api/expressive.json', outgoing, content_type='application/json',
             HTTP_AUTHORIZATION=self.auth_string)
             
         self.assertEquals(resp.status_code, 201)
         
-        expected = """[
-    {
-        "content": "bar", 
-        "comments": [], 
-        "title": "foo"
-    }, 
-    {
-        "content": "bar2", 
-        "comments": [], 
-        "title": "foo2"
-    }, 
-    {
-        "content": "test", 
-        "comments": [
-            {
-                "content": "test1"
-            }, 
-            {
-                "content": "test2"
-            }
-        ], 
-        "title": "test"
-    }
-]"""
+        expected = '[{"content": "bar", "comments": [], "title": "foo"}, {"content": "bar2", "comments": [], "title": "foo2"}, {"content": "test", "comments": [{"content": "test1"}, {"content": "test2"}], "title": "test"}]'
         
-        result = self.client.get('/api/expressive.json', 
-            HTTP_AUTHORIZATION=self.auth_string).content
-            
-        self.assertEquals(result, expected)
+        self.assertEquals(self.client.get('/api/expressive.json', 
+            HTTP_AUTHORIZATION=self.auth_string).content, expected)
         
     def test_incoming_yaml(self):
         if not yaml:
@@ -253,3 +200,10 @@ class ValidationTest(MainTests):
         resp = self.client.get('/api/echo', data)
         self.assertEquals(resp.status_code, 200)
         self.assertEquals(data, simplejson.loads(resp.content))
+
+class PlainOldObject(MainTests):
+    def test_plain_object_serialization(self):
+        resp = self.client.get('/api/popo')
+        self.assertEquals(resp.status_code, 200)
+        self.assertEquals({'type': 'plain', 'field': 'a field'}, simplejson.loads(resp.content))
+        
