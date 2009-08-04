@@ -1,17 +1,24 @@
 import urllib
+
+# Django imports
+from django.db.models.signals import post_save, post_delete
 from django.db import models
 from django.contrib.auth.models import User
 from django.contrib import admin
-from django.conf import settings
 from django.core.mail import send_mail, mail_admins
-from django.template import loader
 
-from managers import TokenManager, ConsumerManager, ResourceManager, KEY_SIZE, SECRET_SIZE
+# Piston imports
+from managers import TokenManager, ConsumerManager, ResourceManager
+from signals import consumer_post_save, consumer_post_delete
+
+KEY_SIZE = 18
+SECRET_SIZE = 32
 
 CONSUMER_STATES = (
-    ('pending', 'Pending approval'),
+    ('pending', 'Pending'),
     ('accepted', 'Accepted'),
     ('canceled', 'Canceled'),
+    ('rejected', 'Rejected')
 )
 
 class Nonce(models.Model):
@@ -23,18 +30,6 @@ class Nonce(models.Model):
         return u"Nonce %s for %s" % (self.key, self.consumer_key)
 
 admin.site.register(Nonce)
-
-class Resource(models.Model):
-    name = models.CharField(max_length=255)
-    url = models.TextField(max_length=2047)
-    is_readonly = models.BooleanField(default=True)
-    
-    objects = ResourceManager()
-
-    def __unicode__(self):
-        return u"Resource %s with url %s" % (self.name, self.url)
-
-admin.site.register(Resource)
 
 class Consumer(models.Model):
     name = models.CharField(max_length=255)
@@ -51,39 +46,27 @@ class Consumer(models.Model):
     def __unicode__(self):
         return u"Consumer %s with key %s" % (self.name, self.key)
 
-    def save(self, **kwargs):
-        super(Consumer, self).save(**kwargs)
-        
-        if self.id and self.user:
-            subject = "API Consumer"
-            rcpt = [ self.user.email, ]
+    def generate_random_codes(self):
+        """
+        Used to generate random key/secret pairings. Use this after you've
+        added the other data in place of save(). 
 
-            if self.status == "accepted":
-                template = "api/mails/consumer_accepted.txt"
-                subject += " was accepted!"
-            elif self.status == "canceled":
-                template = "api/mails/consumer_canceled.txt"
-                subject += " has been canceled"
-            else:
-                template = "api/mails/consumer_pending.txt"
-                subject += " application received"
-                
-                for admin in settings.ADMINS:
-                    bcc.append(admin[1])
+        c = Consumer()
+        c.name = "My consumer" 
+        c.description = "An app that makes ponies from the API."
+        c.user = some_user_object
+        c.generate_random_codes()
+        """
+        key = User.objects.make_random_password(length=KEY_SIZE)
 
-            body = loader.render_to_string(template, 
-                    { 'consumer': self, 'user': self.user })
-                    
-            send_mail(subject, body, settings.DEFAULT_FROM_EMAIL, 
-                        rcpt, fail_silently=True)
-            
-            if self.status == 'pending':
-                mail_admins(subject, body, fail_silently=True)
-                        
-            if settings.DEBUG:
-                print "Mail being sent, to=%s" % rcpt
-                print "Subject: %s" % subject
-                print body
+        secret = User.objects.make_random_password(length=SECRET_SIZE)
+
+        while Consumer.objects.filter(key__exact=key, secret__exact=secret).count():
+            secret = User.objects.make_random_password(length=SECRET_SIZE)
+
+        self.key = key
+        self.secret = secret
+        self.save()
 
 admin.site.register(Consumer)
 
@@ -115,4 +98,19 @@ class Token(models.Model):
             del token_dict['oauth_token_secret']
         return urllib.urlencode(token_dict)
 
+    def generate_random_codes(self):
+        key = User.objects.make_random_password(length=KEY_SIZE)
+        secret = User.objects.make_random_password(length=SECRET_SIZE)
+
+        while Token.objects.filter(key__exact=key, secret__exact=secret).count():
+            secret = User.objects.make_random_password(length=SECRET_SIZE)
+
+        self.key = key
+        self.secret = secret
+        self.save()
+        
 admin.site.register(Token)
+
+# Attach our signals
+post_save.connect(consumer_post_save, sender=Consumer)
+post_delete.connect(consumer_post_delete, sender=Consumer)
