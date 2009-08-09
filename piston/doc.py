@@ -1,6 +1,7 @@
 import inspect, handler
 
 from piston.handler import typemapper
+from piston.handler import handler_tracker
 
 from django.core.urlresolvers import get_resolver, get_callable, get_script_prefix
 from django.shortcuts import render_to_response
@@ -36,8 +37,7 @@ class HandlerMethod(object):
             else:
                 yield (arg, None)
         
-    @property
-    def signature(self, parse_optional=True):
+    def get_signature(self, parse_optional=True):
         spec = ""
 
         for argn, argdef in self.iter_args():
@@ -54,25 +54,18 @@ class HandlerMethod(object):
             return spec.replace("=None", "=<optional>")
             
         return spec
+
+    signature = property(get_signature)
         
-    @property
-    def doc(self):
+    def get_doc(self):
         return inspect.getdoc(self.method)
     
-    @property
-    def name(self):
-        return self.method.__name__
+    doc = property(get_doc)
     
-    @property
-    def http_name(self):
-        if self.name == 'read':
-            return 'GET'
-        elif self.name == 'create':
-            return 'POST'
-        elif self.name == 'delete':
-            return 'DELETE'
-        elif self.name == 'update':
-            return 'PUT'
+    def get_name(self):
+        return self.method.__name__
+        
+    name = property(get_name)
     
     def __repr__(self):
         return "<Method: %s>" % self.name
@@ -105,19 +98,11 @@ class HandlerDocumentation(object):
     def get_model(self):
         return getattr(self, 'model', None)
             
-    @property
-    def has_anonymous(self):
-        return self.handler.anonymous
-            
-    @property
-    def anonymous(self):
-        if self.has_anonymous:
-            return HandlerDocumentation(self.handler.anonymous)
-            
-    @property
-    def doc(self):
+    def get_doc(self):
         return self.handler.__doc__
     
+    doc = property(get_doc)
+
     @property
     def name(self):
         return self.handler.__name__
@@ -175,8 +160,16 @@ def documentation_view(request):
     """
     docs = [ ]
 
-    for handler, (model, anonymous) in typemapper.iteritems():
+    for handler in handler_tracker: 
         docs.append(generate_doc(handler))
-        
+
+    def _compare(doc1, doc2): 
+       #handlers and their anonymous counterparts are put next to each other.
+       name1 = doc1.name.replace("Anonymous", "")
+       name2 = doc2.name.replace("Anonymous", "")
+       return cmp(name1, name2)    
+ 
+    docs.sort(_compare)
+       
     return render_to_response('documentation.html', 
         { 'docs': docs }, RequestContext(request))
