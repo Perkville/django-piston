@@ -31,7 +31,6 @@ from django.http import HttpResponse
 from django.core import serializers
 
 from utils import HttpStatusCode, Mimer
-from validate_jsonp import is_valid_jsonp_callback_value
 
 try:
     import cStringIO as StringIO
@@ -103,7 +102,7 @@ class Emitter(object):
             
             if isinstance(thing, QuerySet):
                 ret = _qs(thing, fields=fields)
-            elif isinstance(thing, (tuple, list)):
+            elif isinstance(thing, (tuple, list, set)):
                 ret = _list(thing)
             elif isinstance(thing, dict):
                 ret = _dict(thing)
@@ -381,11 +380,11 @@ class JSONEmitter(Emitter):
     JSON emitter, understands timestamps.
     """
     def render(self, request):
-        cb = request.GET.get('callback', None)
+        cb = request.GET.get('callback')
         seria = simplejson.dumps(self.construct(), cls=DateTimeAwareJSONEncoder, ensure_ascii=False, indent=4)
 
         # Callback
-        if cb and is_valid_jsonp_callback_value(cb):
+        if cb:
             return '%s(%s)' % (cb, seria)
 
         return seria
