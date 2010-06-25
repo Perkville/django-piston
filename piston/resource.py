@@ -64,6 +64,16 @@ class Resource(object):
 
         return em
 
+    def form_validation_response(self, e):
+        """
+        Method to return form validation error information. 
+        You will probably want to override this in your own
+        `Resource` subclass.
+        """
+        resp = rc.BAD_REQUEST
+        resp.write(' '+str(e.form.errors))
+        return resp
+
     @property
     def anonymous(self):
         """
@@ -126,6 +136,11 @@ class Resource(object):
                 translate_mime(request)
             except MimerDataException:
                 return rc.BAD_REQUEST
+            if not hasattr(request, 'data'):
+                if rm == 'POST':
+                    request.data = request.POST
+                else:
+                    request.data = request.PUT
 
         if not rm in handler.allowed_methods:
             return HttpResponseNotAllowed(handler.allowed_methods)
@@ -147,47 +162,9 @@ class Resource(object):
 
         try:
             result = meth(request, *args, **kwargs)
-        except FormValidationError, e:
-            resp = rc.BAD_REQUEST
-            resp.write(' '+str(e.form.errors))
-
-            return resp
-        except TypeError, e:
-            result = rc.BAD_REQUEST
-            hm = HandlerMethod(meth)
-            sig = hm.signature
-
-            msg = 'Method signature does not match.\n\n'
-
-            if sig:
-                msg += 'Signature should be: %s' % sig
-            else:
-                msg += 'Resource does not expect any parameters.'
-
-            if self.display_errors:
-                msg += '\n\nException was: %s' % str(e)
-
-            result.content = format_error(msg)
-        except Http404:
-            return rc.NOT_FOUND
-        except HttpStatusCode, e:
-            return e.response
         except Exception, e:
-            """
-            On errors (like code errors), we'd like to be able to
-            give crash reports to both admins and also the calling
-            user. There's two setting parameters for this:
+            result = self.error_handler(e, request, meth)
 
-            Parameters::
-             - `PISTON_EMAIL_ERRORS`: Will send a Django formatted
-               error email to people in `settings.ADMINS`.
-             - `PISTON_DISPLAY_ERRORS`: Will return a simple traceback
-               to the caller, so he can tell you what error they got.
-
-            If `PISTON_DISPLAY_ERRORS` is not enabled, the caller will
-            receive a basic "500 Internal Server Error" message.
-            """
-            return self.handle_exception(request, e, sys.exc_info(), em_format)
 
         try:
             emitter, ct = Emitter.get(em_format)
@@ -204,6 +181,18 @@ class Resource(object):
                     isinstance(result, list) or isinstance(result, QuerySet)):
                 fields = handler.list_fields
 
+        status_code = 200
+
+        # If we're looking at a response object which contains non-string
+        # content, then assume we should use the emitter to format that 
+        # content
+        if isinstance(result, HttpResponse) and not result._is_string:
+            status_code = result.status_code
+            # Note: We can't use result.content here because that method attempts
+            # to convert the content into a string which we don't want. 
+            # when _is_string is False _container is the raw data
+            result = result._container
+            
         srl = emitter(result, typemapper, handler, fields, anonymous)
 
         try:
@@ -217,7 +206,7 @@ class Resource(object):
             else: stream = srl.render(request)
 
             if not isinstance(stream, HttpResponse):
-                resp = HttpResponse(stream, mimetype=ct)
+                resp = HttpResponse(stream, mimetype=ct, status=status_code)
             else:
                 resp = stream
 
@@ -261,13 +250,58 @@ class Resource(object):
         message.send(fail_silently=True)
 
 
-    def handle_exception(self, request, exc, exc_info, em_format):
-        exc_type, exc_value, tb = exc_info
-        rep = ExceptionReporter(request, exc_type, exc_value, tb.tb_next)
-        if self.email_errors:
-            self.email_exception(rep)
-        if self.display_errors:
-            return HttpResponseServerError(
-                format_error('\n'.join(rep.format_exception())))
-        else:
-            raise
+    def error_handler(self, e, request, meth):
+        """
+        Override this method to add handling of errors customized for your 
+        needs
+        """
+        if isinstance(e, FormValidationError):
+            return self.form_validation_response(e)
+
+        elif isinstance(e, TypeError):
+            result = rc.BAD_REQUEST
+            hm = HandlerMethod(meth)
+            sig = hm.signature
+
+            msg = 'Method signature does not match.\n\n'
+
+            if sig:
+                msg += 'Signature should be: %s' % sig
+            else:
+                msg += 'Resource does not expect any parameters.'
+
+            if self.display_errors:
+                msg += '\n\nException was: %s' % str(e)
+
+            result.content = format_error(msg)
+            return result
+        elif isinstance(e, Http404):
+            return rc.NOT_FOUND
+
+        elif isinstance(e, HttpStatusCode):
+            return e.response
+ 
+        else: 
+            """
+            On errors (like code errors), we'd like to be able to
+            give crash reports to both admins and also the calling
+            user. There's two setting parameters for this:
+
+            Parameters::
+             - `PISTON_EMAIL_ERRORS`: Will send a Django formatted
+               error email to people in `settings.ADMINS`.
+             - `PISTON_DISPLAY_ERRORS`: Will return a simple traceback
+               to the caller, so he can tell you what error they got.
+
+            If `PISTON_DISPLAY_ERRORS` is not enabled, the caller will
+            receive a basic "500 Internal Server Error" message.
+            """
+            exc_type, exc_value, tb = sys.exc_info()
+            rep = ExceptionReporter(request, exc_type, exc_value, tb.tb_next)
+            if self.email_errors:
+                self.email_exception(rep)
+            if self.display_errors:
+                return HttpResponseServerError(
+                    format_error('\n'.join(rep.format_exception())))
+            else:
+                raise
