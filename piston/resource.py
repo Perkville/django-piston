@@ -163,14 +163,23 @@ class Resource(object):
         try:
             result = meth(request, *args, **kwargs)
         except Exception, e:
-            result = self.error_handler(e, request, meth)
+            result = self.error_handler(e, request, meth, em_format)
 
 
-        emitter, ct = Emitter.get(em_format)
-        fields = handler.fields
-        if hasattr(handler, 'list_fields') and (
-                isinstance(result, list) or isinstance(result, QuerySet)):
-            fields = handler.list_fields
+        try:
+            emitter, ct = Emitter.get(em_format)
+        except ValueError:
+            result = rc.BAD_REQUEST
+            result.content = "Invalid output format specified '%s'." % em_format
+            return result
+
+        try:
+            result, fields = result
+        except ValueError:
+            fields = handler.fields
+            if hasattr(handler, 'list_fields') and (
+                    isinstance(result, list) or isinstance(result, QuerySet)):
+                fields = handler.list_fields
 
         status_code = 200
 
@@ -241,7 +250,7 @@ class Resource(object):
         message.send(fail_silently=True)
 
 
-    def error_handler(self, e, request, meth):
+    def error_handler(self, e, request, meth, em_format):
         """
         Override this method to add handling of errors customized for your 
         needs
