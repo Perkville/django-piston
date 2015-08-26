@@ -2,6 +2,7 @@ from __future__ import generators
 
 import decimal, re, inspect
 import copy
+import json
 
 try:
     # yaml isn't standard with python.  It shouldn't be required if it
@@ -22,7 +23,6 @@ except NameError:
 
 from django.db.models.query import QuerySet
 from django.db.models import Model, permalink
-from django.utils import simplejson
 from django.utils.xmlutils import SimplerXMLGenerator
 from django.utils.encoding import smart_unicode
 from django.core.urlresolvers import reverse, NoReverseMatch
@@ -95,26 +95,16 @@ class Emitter(object):
 
         Returns `dict`.
         """
-        def _any(thing, fields=None):
+        def _any(thing, fields=()):
             """
             Dispatch, all types are routed through here.
             """
             ret = None
 
-            # return anything we've already seen as a string only
-            # this prevents infinite recursion in the case of recursive 
-            # relationships
-
-            if thing in self.stack:
-                raise RuntimeError, (u'Circular reference detected while emitting '
-                                     'response')
-
-            self.stack.append(thing)
-
             if isinstance(thing, QuerySet):
-                ret = _qs(thing, fields)
+                ret = _qs(thing, fields=fields)
             elif isinstance(thing, (tuple, list, set)):
-                ret = _list(thing, fields)
+                ret = _list(thing, fields=fields)
             elif isinstance(thing, dict):
                 ret = _dict(thing, fields)
             elif isinstance(thing, decimal.Decimal):
@@ -135,8 +125,6 @@ class Emitter(object):
             else:
                 ret = smart_unicode(thing, strings_only=True)
 
-            self.stack.pop()
-
             return ret
 
         def _fk(data, field):
@@ -145,19 +133,19 @@ class Emitter(object):
             """
             return _any(getattr(data, field.name))
 
-        def _related(data, fields=None):
+        def _related(data, fields=()):
             """
             Foreign keys.
             """
             return [ _model(m, fields) for m in data.iterator() ]
 
-        def _m2m(data, field, fields=None):
+        def _m2m(data, field, fields=()):
             """
             Many to many (re-route to `_model`.)
             """
             return [ _model(m, fields) for m in getattr(data, field.name).iterator() ]
 
-        def _model(data, fields=None):
+        def _model(data, fields=()):
             """
             Models. Will respect the `fields` and/or
             `exclude` on the handler (see `typemapper`.)
@@ -168,17 +156,8 @@ class Emitter(object):
 
             if handler or fields:
                 v = lambda f: getattr(data, f.attname)
-                # FIXME
-                # Catch 22 here. Either we use the fields from the
-                # typemapped handler to make nested models work but the
-                # declared list_fields will ignored for models, or we
-                # use the list_fields from the base handler and accept that
-                # the nested models won't appear properly
-                # Refs #157
-                if handler:
-                    fields = getattr(handler, 'fields')    
-                
-                if not fields or hasattr(handler, 'fields'):
+
+                if not fields:
                     """
                     Fields was not specified, try to find teh correct
                     version in the typemapper we were sent.
@@ -193,7 +172,7 @@ class Emitter(object):
                     if not get_fields:
                         get_fields = set([ f.attname.replace("_id", "", 1)
                             for f in data._meta.fields + data._meta.virtual_fields])
-                    
+
                     if hasattr(mapped, 'extra_fields'):
                         get_fields.update(mapped.extra_fields)
 
@@ -213,7 +192,7 @@ class Emitter(object):
                 met_fields = self.method_fields(handler, get_fields)
 
                 for f in data._meta.local_fields + data._meta.virtual_fields:
-                    if f.serialize and not any([ p in met_fields for p in [ f.attname, f.name ]]):
+                    if hasattr(f, 'serialize') and f.serialize and not any([ p in met_fields for p in [ f.attname, f.name ]]):
                         if not f.rel:
                             if f.attname in get_fields:
                                 ret[f.attname] = _any(v(f))
@@ -296,26 +275,25 @@ class Emitter(object):
 
             return ret
 
-        def _qs(data, fields=None):
+        def _qs(data, fields=()):
             """
             Querysets.
             """
             return [ _any(v, fields) for v in data ]
 
-        def _list(data, fields=None):
+        def _list(data, fields=()):
             """
             Lists.
             """
             return [ _any(v, fields) for v in data ]
 
-        def _dict(data, fields=None):
+        def _dict(data, fields=()):
             """
             Dictionaries.
             """
             return dict([ (k, _any(v, fields)) for k, v in data.iteritems() ])
 
         # Kickstart the seralizin'.
-        self.stack = [];
         return _any(self.data, self.fields)
 
     def in_typemapper(self, model, anonymous):
@@ -407,7 +385,7 @@ class JSONEmitter(Emitter):
     """
     def render(self, request):
         cb = request.GET.get('callback', None)
-        seria = simplejson.dumps(self.construct(), cls=DateTimeAwareJSONEncoder, ensure_ascii=False, indent=4)
+        seria = json.dumps(self.construct(), cls=DateTimeAwareJSONEncoder, ensure_ascii=False, indent=4)
 
         # Callback
         if cb and is_valid_jsonp_callback_value(cb):
@@ -416,7 +394,7 @@ class JSONEmitter(Emitter):
         return seria
 
 Emitter.register('json', JSONEmitter, 'application/json; charset=utf-8')
-Mimer.register(simplejson.loads, ('application/json',))
+Mimer.register(json.loads, ('application/json',))
 
 class YAMLEmitter(Emitter):
     """
@@ -428,7 +406,7 @@ class YAMLEmitter(Emitter):
 
 if yaml:  # Only register yaml if it was import successfully.
     Emitter.register('yaml', YAMLEmitter, 'application/x-yaml; charset=utf-8')
-    Mimer.register(lambda s: dict(yaml.safe_load(s)), ('application/x-yaml',))
+    Mimer.register(lambda s: dict(yaml.load(s)), ('application/x-yaml',))
 
 class PickleEmitter(Emitter):
     """

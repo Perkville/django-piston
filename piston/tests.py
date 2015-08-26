@@ -1,5 +1,4 @@
 # Django imports
-import django
 from django.core import mail
 from django.contrib.auth.models import User
 from django.conf import settings
@@ -101,8 +100,7 @@ class CustomResponseWithStatusCodeTest(TestCase):
          response = resource(request, emitter_format='json')
 
          self.assertEquals(201, response.status_code)
-         is_string = (not response._base_content_is_iter) if django.VERSION >= (1,4) else response._is_string
-         self.assert_(is_string, "Expected response content to be a string")
+         self.assertTrue(isinstance(response.content, str), "Expected response content to be a string")
 
          # compare the original data dict with the json response 
          # converted to a dict
