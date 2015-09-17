@@ -11,7 +11,7 @@ from decorator import decorator
 
 from datetime import datetime, timedelta
 
-__version__ = '0.2.3rc1'
+__version__ = '0.2.3.1'
 
 def get_version():
     return __version__
@@ -49,7 +49,7 @@ class rc_factory(object):
 
         class HttpResponseWrapper(HttpResponse):
             """
-            Wrap HttpResponse and make sure that the internal_base_content_is_iter 
+            Wrap HttpResponse and make sure that the internal_base_content_is_iter
             flag is updated when the _set_content method (via the content
             property) is called
             """
