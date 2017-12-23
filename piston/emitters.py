@@ -25,7 +25,7 @@ except NameError:
 from django.db.models.query import QuerySet
 from django.db.models import Model, permalink
 from django.utils.xmlutils import SimplerXMLGenerator
-from django.utils.encoding import smart_unicode
+from django.utils.encoding import smart_str
 from django.core.urlresolvers import reverse, NoReverseMatch
 from django.core.serializers.json import DateTimeAwareJSONEncoder
 from django.http import HttpResponse
@@ -60,9 +60,9 @@ class Emitter(object):
     as the methods on the handler. Issue58 says that's no good.
     """
     EMITTERS = { }
-    RESERVED_FIELDS = set([ 'read', 'update', 'create',
-                            'delete', 'model', 'anonymous',
-                            'allowed_methods', 'fields', 'exclude' ])
+    RESERVED_FIELDS = { 'read', 'update', 'create',
+                        'delete', 'model', 'anonymous',
+                        'allowed_methods', 'fields', 'exclude' }
 
     def __init__(self, payload, typemapper, handler, fields=(), anonymous=True):
         self.typemapper = typemapper
@@ -72,7 +72,7 @@ class Emitter(object):
         self.anonymous = anonymous
 
         if isinstance(self.data, Exception):
-            raise
+            raise self.data
 
     def method_fields(self, handler, fields):
         if not handler:
@@ -92,7 +92,7 @@ class Emitter(object):
         """
         Recursively serialize a lot of types, and
         in cases where it doesn't recognize the type,
-        it will fall back to Django's `smart_unicode`.
+        it will fall back to Django's `smart_str`.
 
         Returns `dict`.
         """
@@ -124,7 +124,7 @@ class Emitter(object):
             elif repr(thing).startswith("<django.db.models.fields.related.RelatedManager"):
                 ret = _any(thing.all())
             else:
-                ret = smart_unicode(thing, strings_only=True)
+                ret = smart_str(thing, strings_only=True)
 
             return ret
 
@@ -361,7 +361,7 @@ class XMLEmitter(Emitter):
                 self._to_xml(xml, value)
                 xml.endElement(key)
         else:
-            xml.characters(smart_unicode(data))
+            xml.characters(smart_str(data))
 
     def render(self, request):
         stream = io.StringIO()

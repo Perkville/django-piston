@@ -1,7 +1,6 @@
-import inspect, handler
+import inspect
 
-from piston.handler import typemapper
-from piston.handler import handler_tracker
+from .handler import handler_tracker, HandlerMetaClass
 
 from django.core.urlresolvers import get_resolver, get_callable, get_script_prefix
 from django.shortcuts import render_to_response
@@ -13,7 +12,7 @@ def generate_doc(handler_cls):
     for the given handler. Use this to generate
     documentation for your API.
     """
-    if isinstance(type(handler_cls), handler.HandlerMetaClass):
+    if isinstance(type(handler_cls), HandlerMetaClass):
         raise ValueError("Give me handler, not %s" % type(handler_cls))
         
     return HandlerDocumentation(handler_cls)
