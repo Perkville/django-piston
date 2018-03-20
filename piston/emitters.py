@@ -26,7 +26,7 @@ from django.db.models import Model, permalink
 from django.utils.xmlutils import SimplerXMLGenerator
 from django.utils.encoding import smart_unicode
 from django.core.urlresolvers import reverse, NoReverseMatch
-from django.core.serializers.json import DateTimeAwareJSONEncoder
+from django.core.serializers.json import DjangoJSONEncoder as DateTimeAwareJSONEncoder
 from django.http import HttpResponse
 from django.core import serializers
 
