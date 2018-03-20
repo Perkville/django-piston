@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals
+
 
 from django.db import models, migrations
 from django.conf import settings
@@ -41,7 +41,7 @@ class Migration(migrations.Migration):
                 ('secret', models.CharField(max_length=32)),
                 ('verifier', models.CharField(max_length=10)),
                 ('token_type', models.IntegerField(choices=[(1, 'Request'), (2, 'Access')])),
-                ('timestamp', models.IntegerField(default=1442449830L)),
+                ('timestamp', models.IntegerField(default=1442449830)),
                 ('is_approved', models.BooleanField(default=False)),
                 ('callback', models.CharField(max_length=255, null=True, blank=True)),
                 ('callback_confirmed', models.BooleanField(default=False)),

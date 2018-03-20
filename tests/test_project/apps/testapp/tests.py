@@ -8,6 +8,12 @@ from piston import oauth
 from piston.models import Consumer, Token
 from piston.forms import OAuthAuthenticationForm
 
+
+# Okay so this whole thing has a few different huge problems, and was not
+# taken up to Python 3.
+
+raise RuntimeError("This module needs to be fixed")
+
 try:
     import yaml
 except ImportError:

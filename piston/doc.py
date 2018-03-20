@@ -1,7 +1,6 @@
-import inspect, handler
+import inspect
 
-from piston.handler import typemapper
-from piston.handler import handler_tracker
+from .handler import handler_tracker, HandlerMetaClass
 
 from django.core.urlresolvers import get_resolver, get_callable, get_script_prefix
 from django.shortcuts import render_to_response
@@ -13,7 +12,7 @@ def generate_doc(handler_cls):
     for the given handler. Use this to generate
     documentation for your API.
     """
-    if isinstance(type(handler_cls), handler.HandlerMetaClass):
+    if isinstance(type(handler_cls), HandlerMetaClass):
         raise ValueError("Give me handler, not %s" % type(handler_cls))
         
     return HandlerDocumentation(handler_cls)
@@ -89,7 +88,7 @@ class HandlerDocumentation(object):
             if not met:
                 continue
                 
-            stale = inspect.getmodule(met.im_func) is not inspect.getmodule(self.handler)
+            stale = inspect.getmodule(met.__func__) is not inspect.getmodule(self.handler)
 
             if not self.handler.is_anonymous:
                 if met and (not stale or include_default):
@@ -140,7 +139,7 @@ class HandlerDocumentation(object):
         def _convert(template, params=[]):
             """URI template converter"""
             paths = template % dict([p, "{%s}" % p] for p in params)
-            return u'%s%s' % (get_script_prefix(), paths)
+            return '%s%s' % (get_script_prefix(), paths)
         
         try:
             resource_uri = self.handler.resource_uri()
@@ -171,7 +170,7 @@ class HandlerDocumentation(object):
     resource_uri_template = property(get_resource_uri_template)
     
     def __repr__(self):
-        return u'<Documentation for "%s">' % self.name
+        return '<Documentation for "%s">' % self.name
 
 def documentation_view(request):
     """
