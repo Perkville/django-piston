@@ -21,7 +21,7 @@ class Migration(migrations.Migration):
                 ('key', models.CharField(max_length=18)),
                 ('secret', models.CharField(max_length=32)),
                 ('status', models.CharField(default=b'pending', max_length=16, choices=[(b'pending', b'Pending'), (b'accepted', b'Accepted'), (b'canceled', b'Canceled'), (b'rejected', b'Rejected')])),
-                ('user', models.ForeignKey(related_name='consumers', blank=True, to=settings.AUTH_USER_MODEL, null=True)),
+                ('user', models.ForeignKey(related_name='consumers', on_delete=models.CASCADE, blank=True, to=settings.AUTH_USER_MODEL, null=True)),
             ],
         ),
         migrations.CreateModel(
@@ -45,8 +45,8 @@ class Migration(migrations.Migration):
                 ('is_approved', models.BooleanField(default=False)),
                 ('callback', models.CharField(max_length=255, null=True, blank=True)),
                 ('callback_confirmed', models.BooleanField(default=False)),
-                ('consumer', models.ForeignKey(to='piston.Consumer')),
-                ('user', models.ForeignKey(related_name='tokens', blank=True, to=settings.AUTH_USER_MODEL, null=True)),
+                ('consumer', models.ForeignKey(to='piston.Consumer', on_delete=models.CASCADE)),
+                ('user', models.ForeignKey(related_name='tokens', on_delete=models.CASCADE, blank=True, to=settings.AUTH_USER_MODEL, null=True)),
             ],
         ),
     ]

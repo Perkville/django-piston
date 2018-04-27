@@ -7,7 +7,7 @@ from django.contrib.auth.decorators import login_required
 from django.template import loader
 from django.contrib.auth import authenticate
 from django.conf import settings
-from django.core.urlresolvers import get_callable
+from django.urls import get_callable
 from django.core.exceptions import ImproperlyConfigured
 from django.shortcuts import render_to_response
 from django.template import RequestContext

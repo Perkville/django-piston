@@ -2,7 +2,7 @@ import inspect
 
 from .handler import handler_tracker, HandlerMetaClass
 
-from django.core.urlresolvers import get_resolver, get_callable, get_script_prefix
+from django.urls import get_resolver, get_callable, get_script_prefix
 from django.shortcuts import render_to_response
 from django.template import RequestContext
 
